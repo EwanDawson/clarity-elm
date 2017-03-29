@@ -160,3 +160,51 @@ p n attrs content =
 closeButton : msg -> Html msg
 closeButton message =
     button [ type_ "button", class "close", onClick message ] [ icon "close" [] ]
+
+
+
+-- badges
+
+
+type BadgeType
+    = GreyBadge
+    | PurpleBadge
+    | OrangeBadge
+    | LightBlueBadge
+    | InfoBadge
+    | SuccessBadge
+    | WarningBadge
+    | DangerBadge
+
+
+badge : BadgeType -> String -> Html msg
+badge badgeType badgeText =
+    let
+        badgeClass =
+            "badge"
+                ++ case badgeType of
+                    GreyBadge ->
+                        ""
+
+                    PurpleBadge ->
+                        " badge-purple"
+
+                    OrangeBadge ->
+                        " badge-blue"
+
+                    LightBlueBadge ->
+                        " badge-light-blue"
+
+                    InfoBadge ->
+                        " badge-info"
+
+                    SuccessBadge ->
+                        " badge-success"
+
+                    WarningBadge ->
+                        " badge-warning"
+
+                    DangerBadge ->
+                        " badge-danger"
+    in
+        span [ class badgeClass ] [ text badgeText ]
