@@ -119,7 +119,7 @@ alertItem item =
         [ span [ class "alert-text" ] [ text item.text ]
         , div [ class "alert-actions" ]
             [ div [ class "alert-action dropdown botton-right" ]
-                [ button [ class "dropdown-toggle" ]
+                [ Html.button [ class "dropdown-toggle" ]
                     [ text "Actions"
                     , icon "caret down" []
                     ]
@@ -157,9 +157,104 @@ p n attrs content =
 -- buttons
 
 
+type ButtonType
+    = PrimaryButton
+    | SuccessButton
+    | WarningButton
+    | DangerButton
+    | DisabledButton
+    | OutlineButton
+    | SuccessOutlineButton
+    | InfoOutlineButton
+    | WarningOutlineButton
+    | DangerOutlineButton
+    | DisabledOutlineButton
+    | FlatButton
+    | FlatDisabledButton
+    | InverseButton
+
+
+type ButtonSize
+    = NormalButton
+    | SmallButton
+    | BlockButton
+
+
+button : ButtonType -> ButtonSize -> msg -> String -> Html msg
+button buttonType buttonSize message buttonText =
+    let
+        buttonClass =
+            "btn"
+                ++ " "
+                ++ (buttonTypeToClass buttonType)
+                ++ " "
+                ++ (buttonSizeToClass buttonSize)
+    in
+        Html.button [ type_ "submit", class buttonClass, onClick message ] [ text buttonText ]
+
+
+buttonTypeToClass : ButtonType -> String
+buttonTypeToClass buttonType =
+    case buttonType of
+        PrimaryButton ->
+            "btn-primary"
+
+        SuccessButton ->
+            "btn-success"
+
+        WarningButton ->
+            "btn-warning"
+
+        DangerButton ->
+            "btn-danger"
+
+        DisabledButton ->
+            "btn-primary"
+
+        OutlineButton ->
+            "btn-outline"
+
+        SuccessOutlineButton ->
+            "btn-success-outline"
+
+        InfoOutlineButton ->
+            "btn-info-outline"
+
+        WarningOutlineButton ->
+            "btn-warning-outline"
+
+        DangerOutlineButton ->
+            "btn-danger-outline"
+
+        DisabledOutlineButton ->
+            "btn-outline"
+
+        FlatButton ->
+            "btn-link"
+
+        FlatDisabledButton ->
+            "btn-link"
+
+        InverseButton ->
+            "btn-inverse"
+
+
+buttonSizeToClass : ButtonSize -> String
+buttonSizeToClass buttonSize =
+    case buttonSize of
+        NormalButton ->
+            ""
+
+        SmallButton ->
+            "btn-sm"
+
+        BlockButton ->
+            "btn-block"
+
+
 closeButton : msg -> Html msg
 closeButton message =
-    button [ type_ "button", class "close", onClick message ] [ icon "close" [] ]
+    Html.button [ type_ "button", class "close", onClick message ] [ icon "close" [] ]
 
 
 
