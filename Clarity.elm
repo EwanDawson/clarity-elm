@@ -5,34 +5,116 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 
 
+type alias UpdateResult model msg =
+    { layout : ApplicationLayout model msg, model : model, command : Cmd msg }
+
+
+type alias Config model msg =
+    { init : UpdateResult model msg
+    , update : msg -> model -> UpdateResult model msg
+    , subscriptions : model -> Sub msg
+    }
+
+
+type alias Model model msg =
+    { layout : ApplicationLayout model msg
+    , model : model
+    }
+
+
+type Msg msg
+    = Message msg
+    | CloseAppAlert
+
+
+update :
+    (msg -> model -> UpdateResult model msg)
+    -> Msg msg
+    -> Model model msg
+    -> ( Model model msg, Cmd (Msg msg) )
+update updater message application =
+    case message of
+        Message msg ->
+            let
+                result =
+                    updater msg application.model
+            in
+                ( { application | layout = result.layout, model = result.model }
+                , Cmd.map Message result.command
+                )
+
+        CloseAppAlert ->
+            let
+                layout =
+                    application.layout
+
+                updatedLayout =
+                    case layout.appAlert of
+                        Just alert ->
+                            { layout | appAlert = Nothing }
+
+                        Nothing ->
+                            layout
+            in
+                ( { application | layout = updatedLayout }, Cmd.none )
+
+
+program : Config model msg -> Program Never (Model model msg) (Msg msg)
+program config =
+    let
+        model =
+            { layout = config.init.layout
+            , model = config.init.model
+            }
+
+        init =
+            ( model, Cmd.map Message config.init.command )
+    in
+        Html.program
+            { init = init
+            , update = update config.update
+            , subscriptions = (\m -> Sub.none)
+            , view = view
+            }
+
+
+type alias ApplicationLayout model msg =
+    { appAlert : Maybe (Alert msg)
+    , header : model -> Html (Msg msg)
+    , subnav : model -> Html (Msg msg)
+    , contentContainer : model -> Html (Msg msg)
+    }
+
+
+view : Model model msg -> Html (Msg msg)
+view application =
+    let
+        layout =
+            application.layout
+
+        model =
+            application.model
+    in
+        div [ class "main-container" ]
+            ((Maybe.withDefault [] (Maybe.map (\a -> [ appAlert a ]) layout.appAlert))
+                ++ [ header [ class "header header-6" ] [ layout.header model ]
+                   , nav [ class "subnav" ] [ layout.subnav model ]
+                   , div [ class "content-container" ] [ layout.contentContainer model ]
+                   ]
+            )
+
+
+
 -- containers
 
 
-type alias MainContainer model msg =
-    { appAlert : model -> Html msg
-    , header : model -> Html msg
-    , subnav : model -> Html msg
-    , contentContainer : model -> Html msg
-    }
-
-
 type alias ContentContainer model msg =
-    { contentArea : model -> Html msg
-    , sidenav : model -> Html msg
+    { contentArea : model -> Html (Msg msg)
+    , sidenav : model -> Html (Msg msg)
     }
 
 
-mainContainer : MainContainer model msg -> model -> Html msg
-mainContainer layout model =
-    div [ class "main-container" ]
-        [ div [ class "alert alert-app-level" ] [ layout.appAlert model ]
-        , header [ class "header header-6" ] [ layout.header model ]
-        , nav [ class "subnav" ] [ layout.subnav model ]
-        , div [ class "content-container" ] [ layout.contentContainer model ]
-        ]
-
-
-contentContainer : ContentContainer model msg -> model -> Html msg
+contentContainer : ContentContainer model msg -> model -> Html (Msg msg)
 contentContainer layout model =
     div [ class "content-container" ]
         [ div [ class "content-area" ] [ layout.contentArea model ]
@@ -48,7 +130,7 @@ type alias Alert msg =
     { severity : AlertSeverity
     , items : List (AlertItem msg)
     , size : AlertSize
-    , onClose : msg
+    , closeable : Bool
     }
 
 
@@ -76,6 +158,11 @@ type AlertSeverity
     | Success
 
 
+type AlertLevel
+    = AppLevelAlert
+    | ContainerLevelAlert
+
+
 alertClass : Alert msg -> String
 alertClass alert =
     (case alert.severity of
@@ -101,38 +188,83 @@ alertClass alert =
            )
 
 
-appAlert : Alert msg -> Html msg
+appAlert : Alert msg -> Html (Msg msg)
 appAlert alert =
-    div [ class ((alertClass alert) ++ " alert-app-level") ]
-        ((closeButton alert.onClose) :: (List.map alertItem alert.items))
+    viewAlert AppLevelAlert alert
 
 
-alert : Alert msg -> Html msg
+alert : Alert msg -> Html (Msg msg)
 alert alert =
-    div [ class (alertClass alert) ]
-        ((closeButton alert.onClose) :: (List.map alertItem alert.items))
+    viewAlert ContainerLevelAlert alert
 
 
-alertItem : AlertItem msg -> Html msg
-alertItem item =
+viewAlert : AlertLevel -> Alert msg -> Html (Msg msg)
+viewAlert alertLevel alert =
+    let
+        alertItems =
+            List.map (alertItem alertLevel) alert.items
+
+        classString =
+            case alertLevel of
+                AppLevelAlert ->
+                    (alertClass alert) ++ " alert-app-level"
+
+                ContainerLevelAlert ->
+                    alertClass alert
+    in
+        div [ class classString ]
+            (if alert.closeable then
+                ((closeButton CloseAppAlert) :: (alertItems))
+             else
+                alertItems
+            )
+
+
+alertItem : AlertLevel -> AlertItem msg -> Html (Msg msg)
+alertItem level item =
     div [ class "alert-item" ]
-        [ span [ class "alert-text" ] [ text item.text ]
-        , div [ class "alert-actions" ]
-            [ div [ class "alert-action dropdown botton-right" ]
-                [ Html.button [ class "dropdown-toggle" ]
-                    [ text "Actions"
-                    , icon "caret down" []
-                    ]
-                , div [ class "dropdown-menu" ]
-                    (List.map alertAction item.actions)
-                ]
-            ]
-        ]
+        ((span [ class "alert-text" ] [ text item.text ])
+            :: if List.isEmpty item.actions then
+                []
+               else
+                [ alertActions level item.actions ]
+        )
 
 
-alertAction : AlertAction msg -> Html msg
-alertAction action =
-    a [ class "dropdown-item", onClick action.message ] [ text action.name ]
+alertActions : AlertLevel -> List (AlertAction msg) -> Html (Msg msg)
+alertActions level actions =
+    case level of
+        AppLevelAlert ->
+            div [ class "alert-actions" ]
+                (List.map buttonAlertAction actions)
+
+        ContainerLevelAlert ->
+            case actions of
+                [ action1, action2 ] ->
+                    div [ class "alert-actions" ]
+                        (List.map buttonAlertAction [ action1, action2 ])
+
+                _ ->
+                    div [ class "alert-actions" ]
+                        [ div [ class "alert-action dropdown botton-right" ]
+                            [ Html.button [ class "dropdown-toggle" ]
+                                [ text "Actions"
+                                , icon "caret down" []
+                                ]
+                            , div [ class "dropdown-menu" ]
+                                (List.map dropdownAlertAction actions)
+                            ]
+                        ]
+
+
+buttonAlertAction : AlertAction msg -> Html (Msg msg)
+buttonAlertAction action =
+    Html.button [ class "btn alert-action", onClick (Message action.message) ] [ text action.name ]
+
+
+dropdownAlertAction : AlertAction msg -> Html (Msg msg)
+dropdownAlertAction action =
+    a [ class "dropdown-item", onClick (Message action.message) ] [ text action.name ]
 
 
 
@@ -303,3 +435,24 @@ badge badgeType badgeText =
                         " badge-danger"
     in
         span [ class badgeClass ] [ text badgeText ]
+
+
+
+-- card
+
+
+type CardContent msg
+    = CardHeader { text : String }
+    | CardBlock { title : Maybe String, text : Html msg }
+    | CardFooter { contents : Html msg }
+    | CardImage (Html.Attribute msg)
+
+
+type CardBlockContent msg
+    = CardBlockTitle String
+
+
+type alias Card msg =
+    { contents : List CardContent
+    , onClick : Maybe msg
+    }
